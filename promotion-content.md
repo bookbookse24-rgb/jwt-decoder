@@ -25,7 +25,7 @@ I built a free tool that:
 
 No signup. No tracking. Just decode.
 
-https://jwt-decoder.vercel.app
+https://bookbookse24-rgb.github.io/jwt-decoder/
 
 #DevCommunity #Coding
 ```
