@@ -103,7 +103,21 @@
         <!-- Pro Features CTA -->
         <div class="mt-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl p-8 text-center">
             <h2 class="text-2xl font-bold mb-3">🚀 JWT Decoder Pro</h2>
-            <p class="mb-6 text-blue-100">Create JWTs, validate signatures, bulk decode, and more</p>
+            <p class="mb-6 text-blue-100">Create JWTs with real signatures, validate signatures, bulk decode, and more</p>
+            <div class="grid md:grid-cols-3 gap-4 mb-6 text-left">
+                <div class="bg-white bg-opacity-10 rounded-lg p-3">
+                    <h4 class="font-bold text-white">✓ Signature Verification</h4>
+                    <p class="text-blue-100 text-sm">Verify HS256/384/512 signatures with your secret key</p>
+                </div>
+                <div class="bg-white bg-opacity-10 rounded-lg p-3">
+                    <h4 class="font-bold text-white">✓ Real JWT Creation</h4>
+                    <p class="text-blue-100 text-sm">Generate tokens with valid HMAC signatures</p>
+                </div>
+                <div class="bg-white bg-opacity-10 rounded-lg p-3">
+                    <h4 class="font-bold text-white">✓ Bulk Operations</h4>
+                    <p class="text-blue-100 text-sm">Decode unlimited tokens at once</p>
+                </div>
+            </div>
             <div class="flex justify-center gap-4 flex-wrap">
                 <a href="https://gumroad.com/l/jwtdecoderpro" target="_blank" class="bg-white text-blue-600 font-semibold py-3 px-6 rounded-lg hover:bg-gray-100 transition">
                     Get Pro - $9/mo
@@ -124,7 +138,7 @@
                     <label class="block text-sm font-medium mb-2">Algorithm</label>
                     <select id="createAlg" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3">
                         <option value="none">none (unsigned)</option>
-                        <option value="HS256">HS256 (HMAC)</option>
+                        <option value="HS256" selected>HS256 (HMAC-SHA256)</option>
                     </select>
                 </div>
                 <div>
@@ -167,7 +181,35 @@
             <div id="bulkResults" class="mt-4 space-y-3"></div>
         </div>
 
-        <!-- Footer -->
+        <!-- Signature Verification (Pro Feature) -->
+        <div class="mt-6 bg-gray-800 rounded-xl p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">🔒 Verify Signature (Pro)</h2>
+                <span class="bg-gradient-to-r from-yellow-400 to-orange-500 text-black text-xs font-bold px-3 py-1 rounded-full">PRO</span>
+            </div>
+            <p class="text-gray-400 mb-4">Verify JWT signature with your secret key. Supports HS256, HS384, HS512.</p>
+            
+            <div class="grid md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Algorithm</label>
+                    <select id="verifyAlg" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3">
+                        <option value="HS256">HS256</option>
+                        <option value="HS384">HS384</option>
+                        <option value="HS512">HS512</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">Your Secret Key</label>
+                    <input id="verifySecret" type="text" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-3" placeholder="your-secret-key">
+                </div>
+            </div>
+            
+            <button onclick="verifySignature()" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-lg transition">
+                Verify Signature
+            </button>
+            
+            <div id="verifyResult" class="mt-4 hidden"></div>
+        </div>
         <footer class="mt-12 text-center text-gray-500 text-sm">
             <p>🔒 Your tokens are decoded locally. Nothing is sent to any server.</p>
         </footer>
@@ -281,8 +323,8 @@
             setTimeout(decodeJWT, 10);
         });
 
-        // Create JWT function
-        function createJWT() {
+        // Create JWT function with real HMAC signatures
+        async function createJWT() {
             const alg = document.getElementById('createAlg').value;
             const secret = document.getElementById('createSecret').value;
             const payloadText = document.getElementById('createPayload').value;
@@ -299,16 +341,29 @@
                 // Create header
                 const header = { alg: alg, typ: 'JWT' };
                 
-                // Base64 encode
+                // Base64 encode header and payload
                 const headerB64 = base64UrlEncode(JSON.stringify(header));
                 const payloadB64 = base64UrlEncode(JSON.stringify(payload));
                 
                 let signature = '';
                 
                 if (alg === 'HS256' && secret) {
-                    // Simple HMAC-SHA256 (using Web Crypto API would be better for production)
-                    // For now, use a placeholder - real implementation would need crypto
-                    signature = 'signature_placeholder_use_pro_for_real_hmac';
+                    // Generate real HMAC-SHA256 signature
+                    const key = await crypto.subtle.importKey(
+                        'raw',
+                        new TextEncoder().encode(secret),
+                        { name: 'HMAC', hash: 'SHA-256' },
+                        false,
+                        ['sign']
+                    );
+                    const signatureBuf = await crypto.subtle.sign(
+                        'HMAC',
+                        key,
+                        new TextEncoder().encode(headerB64 + '.' + payloadB64)
+                    );
+                    signature = binToBase64Url(new Uint8Array(signatureBuf));
+                } else if (alg === 'none') {
+                    signature = '';
                 }
                 
                 const token = `${headerB64}.${payloadB64}.${signature}`;
@@ -319,6 +374,11 @@
             } catch (e) {
                 alert('Error creating JWT: ' + e.message + '\n\nMake sure your payload is valid JSON.');
             }
+        }
+
+        function binToBase64Url(bin) {
+            let base64 = btoa(String.fromCharCode.apply(null, bin));
+            return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
         }
 
         function base64UrlEncode(str) {
@@ -389,6 +449,104 @@
                 summary.innerHTML = `<span class="text-blue-300">Decoded ${validCount} of ${tokens.length} tokens</span>`;
                 resultsDiv.prepend(summary);
             }
+        }
+
+        // Signature Verification (Pro Feature)
+        async function verifySignature() {
+            const token = document.getElementById('jwtInput').value.trim();
+            const secret = document.getElementById('verifySecret').value;
+            const alg = document.getElementById('verifyAlg').value;
+            const resultDiv = document.getElementById('verifyResult');
+            
+            resultDiv.classList.remove('hidden');
+            
+            if (!token) {
+                resultDiv.innerHTML = '<p class="text-red-400">Please paste a JWT token above first.</p>';
+                return;
+            }
+            
+            if (!secret) {
+                resultDiv.innerHTML = '<p class="text-yellow-400">Please enter your secret key to verify.</p>';
+                return;
+            }
+            
+            const parts = token.split('.');
+            if (parts.length !== 3) {
+                resultDiv.innerHTML = '<p class="text-red-400">Invalid JWT format.</p>';
+                return;
+            }
+            
+            try {
+                // Get the algorithm from the token header
+                const header = JSON.parse(base64UrlDecode(parts[0]));
+                const tokenAlg = header.alg;
+                
+                // Map JWT alg to Web Crypto algorithm
+                const algMap = {
+                    'HS256': { name: 'HMAC', hash: 'SHA-256' },
+                    'HS384': { name: 'HMAC', hash: 'SHA-384' },
+                    'HS512': { name: 'HMAC', hash: 'SHA-512' }
+                };
+                
+                if (!algMap[tokenAlg]) {
+                    resultDiv.innerHTML = `<p class="text-red-400">Unsupported algorithm: ${tokenAlg}. This tool supports HS256, HS384, HS512.</p>`;
+                    return;
+                }
+                
+                // Import the secret key
+                const cryptoAlg = algMap[tokenAlg];
+                const key = await crypto.subtle.importKey(
+                    'raw',
+                    new TextEncoder().encode(secret),
+                    { name: cryptoAlg.name, hash: cryptoAlg.hash },
+                    false,
+                    ['verify']
+                );
+                
+                // Decode the signature from base64
+                const signatureBin = base64UrlDecodeToBin(parts[2]);
+                
+                // Verify the signature
+                const isValid = await crypto.subtle.verify(
+                    cryptoAlg.name,
+                    key,
+                    signatureBin,
+                    new TextEncoder().encode(parts[0] + '.' + parts[1])
+                );
+                
+                if (isValid) {
+                    resultDiv.innerHTML = `
+                        <div class="bg-green-900 bg-opacity-30 border border-green-500 rounded-lg p-4">
+                            <p class="text-green-400 font-bold text-lg">✓ SIGNATURE VALID</p>
+                            <p class="text-green-300 text-sm mt-1">The token was signed with the provided secret.</p>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="bg-red-900 bg-opacity-30 border border-red-500 rounded-lg p-4">
+                            <p class="text-red-400 font-bold text-lg">✗ SIGNATURE INVALID</p>
+                            <p class="text-red-300 text-sm mt-1">The token was NOT signed with this secret. It may be forged or tampered with.</p>
+                        </div>
+                    `;
+                }
+                
+            } catch (e) {
+                resultDiv.innerHTML = `<p class="text-red-400">Verification error: ${e.message}</p>`;
+            }
+        }
+
+        function base64UrlDecodeToBin(str) {
+            let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+            const pad = base64.length % 4;
+            if (pad) {
+                base64 += '='.repeat(4 - pad);
+            }
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            return bytes;
         }
     </script>
 </body>
